@@ -25,5 +25,5 @@ if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
   auth = {} as Auth;
   db = {} as Firestore;
 }
-
 export { auth, db };
+

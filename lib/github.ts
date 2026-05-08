@@ -39,22 +39,52 @@ export async function fetchGitHubData(profileUrl: string): Promise<GitHubData> {
 
   await delay(200);
 
-  // Fetch repos
+  // Fetch repos for stars and languages
   const reposRes = await githubFetch(`/users/${username}/repos?per_page=100&sort=updated`);
   if (!reposRes.ok) throw new Error(`Failed to fetch GitHub repos: ${reposRes.status}`);
   const repos: any[] = await reposRes.json();
 
   await delay(200);
 
-  // Fetch events (for commits in last 30 days)
-  const eventsRes = await githubFetch(`/users/${username}/events?per_page=100`);
-  if (!eventsRes.ok) throw new Error(`Failed to fetch GitHub events: ${eventsRes.status}`);
-  const events: any[] = await eventsRes.json();
+  // Fetch commits for the last 6 months using GraphQL
+  // This is superior because it covers 6 months AND includes private commits (restrictedContributionsCount)
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const fromDate = sixMonthsAgo.toISOString();
+
+  const query = `
+    query($login: String!, $from: DateTime!) {
+      user(login: $login) {
+        contributionsCollection(from: $from) {
+          totalCommitContributions
+          restrictedContributionsCount
+        }
+      }
+    }
+  `;
+
+  let commits6m = 0;
+  if (process.env.GITHUB_TOKEN) {
+    const gqlRes = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query, variables: { login: username, from: fromDate } }),
+      next: { revalidate: 0 }
+    });
+
+    if (gqlRes.ok) {
+      const gqlData = await gqlRes.json();
+      const contribs = gqlData?.data?.user?.contributionsCollection;
+      if (contribs) {
+        commits6m = (contribs.totalCommitContributions || 0) + (contribs.restrictedContributionsCount || 0);
+      }
+    }
+  }
 
   // Process repos
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
   let totalStars = 0;
   let reposWithReadme = 0;
   const languages: Record<string, number> = {};
@@ -69,25 +99,12 @@ export async function fetchGitHubData(profileUrl: string): Promise<GitHubData> {
     }
   }
 
-  // Count repos with README heuristic (repos that have a description are likely to have README)
-  reposWithReadme = repos.filter(
-    (r) => r.description && r.description.length > 0
-  ).length;
-
-  // Count push events (commits) in last 30 days
-  let commits30d = 0;
-  for (const event of events) {
-    if (event.type === 'PushEvent') {
-      const eventDate = new Date(event.created_at);
-      if (eventDate >= thirtyDaysAgo) {
-        commits30d += event.payload?.size ?? 1;
-      }
-    }
-  }
+  // Count repos with README heuristic
+  reposWithReadme = repos.filter((r) => r.description && r.description.length > 0).length;
 
   return {
     repos: repos.length,
-    commits30d,
+    commits6m,
     stars: totalStars,
     languages,
     reposWithReadme,

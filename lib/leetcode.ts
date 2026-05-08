@@ -25,8 +25,8 @@ const QUERY = `
           count
         }
       }
-      userContestRanking {
-        rating
+      contestBadge {
+        name
       }
     }
   }
@@ -67,9 +67,8 @@ async function fetchLeetCodeOnce(username: string): Promise<LeetCodeData> {
   const medium = getCount('Medium');
   const hard = getCount('Hard');
   const totalSolved = getCount('All');
-  const contestRating = user.userContestRanking?.rating
-    ? Math.round(user.userContestRanking.rating)
-    : null;
+  // LeetCode removed public contest rating from their API — set to null
+  const contestRating = null;
 
   return { totalSolved, easy, medium, hard, contestRating };
 }

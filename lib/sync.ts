@@ -40,7 +40,7 @@ export async function syncStudent(urls: StudentPlatformUrls): Promise<SyncResult
     // Fallback empty data so scoring can still proceed
     githubData = {
       repos: 0,
-      commits30d: 0,
+      commits6m: 0,
       stars: 0,
       languages: {},
       reposWithReadme: 0,

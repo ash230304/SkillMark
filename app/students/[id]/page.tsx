@@ -32,7 +32,7 @@ interface ScoreData {
   };
   github: {
     repos: number;
-    commits30d: number;
+    commits6m: number;
     stars: number;
     languages: Record<string, number>;
     reposWithReadme: number;
@@ -312,7 +312,7 @@ function StudentDetailContent() {
             <div className="grid grid-cols-3 gap-4 mb-5">
               {[
                 { label: 'Repositories', value: score.github.repos },
-                { label: 'Commits (30d)', value: score.github.commits30d },
+                { label: 'Commits (6m)', value: score.github.commits6m },
                 { label: 'Total Stars', value: score.github.stars },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center p-3 bg-gray-50 rounded-xl">

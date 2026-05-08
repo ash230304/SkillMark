@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import ScoreBadge from './ScoreBadge';
 import ScoreBreakdown from './ScoreBreakdown';
 
@@ -144,9 +144,8 @@ export default function StudentTable({ students, onResync, resyncingIds }: Stude
               const isExpanded = expandedId === student.id;
               const isSyncing = resyncingIds.has(student.id);
               return (
-                <>
+                <React.Fragment key={student.id}>
                   <tr
-                    key={student.id}
                     onClick={() => setExpandedId(isExpanded ? null : student.id)}
                     className="hover:bg-blue-50/40 cursor-pointer transition-colors duration-150 group"
                   >
@@ -231,7 +230,7 @@ export default function StudentTable({ students, onResync, resyncingIds }: Stude
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
           </tbody>

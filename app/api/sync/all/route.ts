@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { getAdminFirestore } from '@/lib/firebase-admin';
 import { syncStudent } from '@/lib/sync';
 import { FieldValue } from 'firebase-admin/firestore';
+import { requireAdminUser } from '@/lib/api-auth';
+import { getErrorMessage } from '@/lib/errors';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -12,6 +14,9 @@ function encodeSSE(data: object): string {
 }
 
 export async function POST(request: NextRequest) {
+  const authError = await requireAdminUser(request);
+  if (authError) return authError;
+
   const db = getAdminFirestore();
 
   const encoder = new TextEncoder();
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
                 })
               )
             );
-          } catch (err: any) {
+          } catch (err: unknown) {
             failed++;
             completed++;
             controller.enqueue(
@@ -84,7 +89,7 @@ export async function POST(request: NextRequest) {
                   progress: completed,
                   total,
                   current: student.name,
-                  error: err.message,
+                  error: getErrorMessage(err),
                 })
               )
             );
@@ -99,9 +104,9 @@ export async function POST(request: NextRequest) {
             encodeSSE({ type: 'done', total, completed: completed - failed, failed })
           )
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         controller.enqueue(
-          encoder.encode(encodeSSE({ type: 'fatal', error: err.message }))
+          encoder.encode(encodeSSE({ type: 'fatal', error: getErrorMessage(err) }))
         );
       } finally {
         controller.close();

@@ -11,8 +11,10 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { AuthGuard } from '@/components/AuthProvider';
+import { AuthGuard, useAuth } from '@/components/AuthProvider';
 import { parseCSV, fetchCSVFromUrl, CSVStudent } from '@/lib/csv';
+import { authenticatedFetch } from '@/lib/api-client';
+import { getErrorMessage } from '@/lib/errors';
 
 interface ImportResult {
   success: number;
@@ -30,6 +32,7 @@ export default function ImportPage() {
 
 function ImportContent() {
   const router = useRouter();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<'url' | 'file'>('file');
@@ -77,8 +80,8 @@ function ImportContent() {
     try {
       const text = await fetchCSVFromUrl(csvUrl.trim());
       handleCSVText(text);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -120,8 +123,8 @@ function ImportContent() {
 
         newStudentIds.push(docRef.id);
         successCount++;
-      } catch (err: any) {
-        errors.push({ row: i + 2, name: row.name, reason: err.message });
+      } catch (err: unknown) {
+        errors.push({ row: i + 2, name: row.name, reason: getErrorMessage(err) });
       }
     }
 
@@ -134,13 +137,13 @@ function ImportContent() {
       (async () => {
         for (const id of newStudentIds) {
           try {
-            await fetch(`/api/sync/${id}`, { method: 'POST' });
+            await authenticatedFetch(user, `/api/sync/${id}`, { method: 'POST' });
           } catch {}
           await new Promise((r) => setTimeout(r, 500));
         }
       })();
     }
-  }, [allRows]);
+  }, [allRows, user]);
 
   const resetState = () => {
     setPreviewRows(null);

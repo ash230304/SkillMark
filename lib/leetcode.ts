@@ -1,9 +1,9 @@
 import { LeetCodeData } from './scoring';
+import { getErrorMessage } from './errors';
 
 const LEETCODE_GRAPHQL = 'https://leetcode.com/graphql';
 
 function extractLeetCodeUsername(profileUrl: string): string {
-  const url = profileUrl.trim().replace(/[/?#].*$/, '').replace(/\/$/, '');
   // Handle https://leetcode.com/u/username/ and https://leetcode.com/username/
   const uMatch = profileUrl.match(/leetcode\.com\/u\/([^/?#]+)/i);
   if (uMatch) return uMatch[1];
@@ -78,8 +78,8 @@ export async function fetchLeetCodeData(profileUrl: string): Promise<LeetCodeDat
 
   try {
     return await fetchLeetCodeOnce(username);
-  } catch (err: any) {
-    if (err.message === 'RATE_LIMIT') {
+  } catch (err: unknown) {
+    if (getErrorMessage(err) === 'RATE_LIMIT') {
       // Wait 2 seconds and retry once
       await delay(2000);
       return await fetchLeetCodeOnce(username);

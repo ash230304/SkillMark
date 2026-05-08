@@ -1,17 +1,19 @@
 'use client';
 
+interface Breakdown {
+  dsa: number;
+  githubActivity: number;
+  projectQuality: number;
+  competitive: number;
+  consistency: number;
+}
+
 interface ScoreBreakdownProps {
-  breakdown: {
-    dsa: number;
-    githubActivity: number;
-    projectQuality: number;
-    competitive: number;
-    consistency: number;
-  };
+  breakdown: Breakdown;
   compact?: boolean;
 }
 
-const components = [
+const components: Array<{ key: keyof Breakdown; label: string; color: string }> = [
   { key: 'dsa', label: 'DSA', color: '#4f8ef7' },
   { key: 'githubActivity', label: 'GitHub Activity', color: '#14b8a6' },
   { key: 'projectQuality', label: 'Project Quality', color: '#22c55e' },
@@ -23,7 +25,7 @@ export default function ScoreBreakdown({ breakdown, compact = false }: ScoreBrea
   return (
     <div className={`flex flex-col gap-${compact ? '2' : '3'}`}>
       {components.map(({ key, label, color }) => {
-        const value = (breakdown as any)[key] ?? 0;
+        const value = breakdown[key] ?? 0;
         return (
           <div key={key} className="flex items-center gap-3">
             <span

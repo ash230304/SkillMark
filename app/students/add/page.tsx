@@ -11,9 +11,11 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { AuthGuard } from '@/components/AuthProvider';
+import { AuthGuard, useAuth } from '@/components/AuthProvider';
 import ScoreBadge from '@/components/ScoreBadge';
 import ScoreBreakdown from '@/components/ScoreBreakdown';
+import { authenticatedFetch } from '@/lib/api-client';
+import { getErrorMessage } from '@/lib/errors';
 
 const BRANCHES = ['CSE', 'ECE', 'IT', 'MECH', 'EEE', 'CIVIL', 'Other'];
 const YEARS = [
@@ -45,6 +47,7 @@ export default function AddStudentPage() {
 
 function AddStudentContent() {
   const router = useRouter();
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     name: '',
@@ -63,7 +66,6 @@ function AddStudentContent() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
-  const [studentId, setStudentId] = useState<string | null>(null);
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -120,12 +122,11 @@ function AddStudentContent() {
         lastSyncedAt: null,
       });
 
-      setStudentId(docRef.id);
       setSubmitting(false);
       setSyncLoading(true);
 
       // Trigger sync
-      const syncRes = await fetch(`/api/sync/${docRef.id}`, { method: 'POST' });
+      const syncRes = await authenticatedFetch(user, `/api/sync/${docRef.id}`, { method: 'POST' });
       const syncData = await syncRes.json();
 
       setScoreResult({
@@ -133,8 +134,8 @@ function AddStudentContent() {
         breakdown: syncData.breakdown ?? { dsa: 0, githubActivity: 0, projectQuality: 0, competitive: 0, consistency: 0 },
         errors: syncData.errors ?? [],
       });
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
       setSyncLoading(false);
@@ -185,7 +186,6 @@ function AddStudentContent() {
               onClick={() => {
                 setForm({ name: '', rollNumber: '', branch: 'CSE', year: '1', email: '', githubUrl: '', leetcodeUrl: '', codechefUrl: '', codeforcesUrl: '' });
                 setScoreResult(null);
-                setStudentId(null);
               }}
               className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
               style={{ fontFamily: 'DM Sans, sans-serif' }}

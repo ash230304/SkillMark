@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import Link from 'next/link';
+import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth, AuthGuard } from '@/components/AuthProvider';
 import StudentTable, { StudentRow } from '@/components/StudentTable';
@@ -10,6 +11,7 @@ import StatCard from '@/components/StatCard';
 import FilterBar from '@/components/FilterBar';
 import SyncProgress from '@/components/SyncProgress';
 import { TableSkeleton, StatCardSkeleton } from '@/components/SkeletonLoader';
+import { authenticatedFetch } from '@/lib/api-client';
 
 interface StudentDoc {
   id: string;
@@ -52,12 +54,13 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const router = useRouter();
 
   const [students, setStudents] = useState<StudentDoc[]>([]);
   const [scores, setScores] = useState<Map<string, ScoreDoc>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
 
   // Filters
   const [branch, setBranch] = useState('');
@@ -104,6 +107,11 @@ function DashboardContent() {
       unsubStudents();
       unsubScores();
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   // Build combined rows
@@ -156,7 +164,7 @@ function DashboardContent() {
 
   function formatLastSync(date: Date | null): string {
     if (!date) return 'Never synced';
-    const diff = Date.now() - date.getTime();
+    const diff = now - date.getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Last synced just now';
     if (mins < 60) return `Last synced ${mins}m ago`;
@@ -166,10 +174,10 @@ function DashboardContent() {
   }
 
   // Single resync
-  const handleResync = useCallback(async (id: string, name: string) => {
+  const handleResync = useCallback(async (id: string) => {
     setResyncingIds((prev) => new Set(prev).add(id));
     try {
-      const res = await fetch(`/api/sync/${id}`, { method: 'POST' });
+      const res = await authenticatedFetch(user, `/api/sync/${id}`, { method: 'POST' });
       if (!res.ok) throw new Error('Sync failed');
     } catch (err) {
       console.error('Resync error:', err);
@@ -180,7 +188,7 @@ function DashboardContent() {
         return next;
       });
     }
-  }, []);
+  }, [user]);
 
   // Bulk sync with SSE
   const handleSyncAll = useCallback(async () => {
@@ -196,7 +204,7 @@ function DashboardContent() {
     });
 
     try {
-      const res = await fetch('/api/sync/all', { method: 'POST' });
+      const res = await authenticatedFetch(user, '/api/sync/all', { method: 'POST' });
       if (!res.body) throw new Error('No response body');
 
       const reader = res.body.getReader();
@@ -239,16 +247,24 @@ function DashboardContent() {
       console.error('Sync all error:', err);
       setSyncProgress((prev) => ({ ...prev, isComplete: true }));
     }
-  }, [students.length]);
+  }, [students.length, user]);
 
   // CSV Export
-  const handleExport = () => {
+  const handleExport = async () => {
     const params = new URLSearchParams();
     if (branch) params.set('branch', branch);
     if (year) params.set('year', year);
     if (minScore) params.set('minScore', minScore);
     if (search) params.set('search', search);
-    window.location.href = `/api/export?${params.toString()}`;
+    const res = await authenticatedFetch(user, `/api/export?${params.toString()}`);
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'skillmark-export.csv';
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleLogout = async () => {
@@ -283,7 +299,7 @@ function DashboardContent() {
 
           {/* Actions */}
           <div className="flex items-center gap-2 ml-auto">
-            <a
+            <Link
               href="/students/add"
               className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-[#4f8ef7] hover:bg-[#4f8ef718] px-3 py-1.5 rounded-lg transition-colors"
               style={{ fontFamily: 'DM Sans, sans-serif' }}
@@ -292,8 +308,8 @@ function DashboardContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Add Student
-            </a>
-            <a
+            </Link>
+            <Link
               href="/students/import"
               className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors"
               style={{ fontFamily: 'DM Sans, sans-serif' }}
@@ -302,7 +318,7 @@ function DashboardContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
               Import
-            </a>
+            </Link>
             <button
               onClick={handleSyncAll}
               disabled={syncProgress.active && !syncProgress.isComplete}
@@ -430,6 +446,7 @@ function DashboardContent() {
               students={filteredRows}
               onResync={handleResync}
               resyncingIds={resyncingIds}
+              now={now}
             />
           </>
         )}

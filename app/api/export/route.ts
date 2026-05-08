@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '@/lib/firebase-admin';
 import { generateExportCSV } from '@/lib/csv';
+import { requireAdminUser } from '@/lib/api-auth';
+import { getErrorMessage } from '@/lib/errors';
+import { ScoreBreakdown } from '@/lib/scoring';
+
+interface StudentExportDoc {
+  name: string;
+  rollNumber: string;
+  branch: string;
+  year: number;
+  lastSyncedAt?: FirebaseFirestore.Timestamp;
+}
+
+interface ScoreExportDoc {
+  compositeScore?: number;
+  breakdown?: ScoreBreakdown;
+}
 
 export async function GET(request: NextRequest) {
+  const authError = await requireAdminUser(request);
+  if (authError) return authError;
+
   try {
     const db = getAdminFirestore();
     const { searchParams } = new URL(request.url);
@@ -16,24 +35,18 @@ export async function GET(request: NextRequest) {
     const studentsSnap = await db.collection('students').get();
     const students = studentsSnap.docs.map((doc) => ({
       id: doc.id,
-      ...(doc.data() as {
-        name: string;
-        rollNumber: string;
-        branch: string;
-        year: number;
-        lastSyncedAt?: FirebaseFirestore.Timestamp;
-      }),
+      ...(doc.data() as StudentExportDoc),
     }));
 
     // Fetch all scores
     const scoresSnap = await db.collection('scores').get();
-    const scoresMap = new Map<string, any>();
+    const scoresMap = new Map<string, ScoreExportDoc>();
     scoresSnap.docs.forEach((doc) => {
-      scoresMap.set(doc.id, doc.data());
+      scoresMap.set(doc.id, doc.data() as ScoreExportDoc);
     });
 
     // Combine and filter
-    let combined = students
+    const combined = students
       .map((s) => {
         const score = scoresMap.get(s.id);
         return {
@@ -78,7 +91,7 @@ export async function GET(request: NextRequest) {
         'Content-Disposition': 'attachment; filename="skillmark-export.csv"',
       },
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

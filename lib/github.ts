@@ -2,6 +2,23 @@ import { GitHubData } from './scoring';
 
 const GITHUB_API_BASE = 'https://api.github.com';
 
+interface GitHubRepo {
+  stargazers_count?: number;
+  description?: string | null;
+  language?: string | null;
+}
+
+interface GitHubGraphQLResponse {
+  data?: {
+    user?: {
+      contributionsCollection?: {
+        totalCommitContributions?: number;
+        restrictedContributionsCount?: number;
+      };
+    };
+  };
+}
+
 function extractGitHubUsername(profileUrl: string): string {
   const url = profileUrl.trim().replace(/\/$/, '');
   const match = url.match(/^https?:\/\/github\.com\/([^/?#]+)/i);
@@ -42,7 +59,7 @@ export async function fetchGitHubData(profileUrl: string): Promise<GitHubData> {
   // Fetch repos for stars and languages
   const reposRes = await githubFetch(`/users/${username}/repos?per_page=100&sort=updated`);
   if (!reposRes.ok) throw new Error(`Failed to fetch GitHub repos: ${reposRes.status}`);
-  const repos: any[] = await reposRes.json();
+  const repos = (await reposRes.json()) as GitHubRepo[];
 
   await delay(200);
 
@@ -76,7 +93,7 @@ export async function fetchGitHubData(profileUrl: string): Promise<GitHubData> {
     });
 
     if (gqlRes.ok) {
-      const gqlData = await gqlRes.json();
+      const gqlData = (await gqlRes.json()) as GitHubGraphQLResponse;
       const contribs = gqlData?.data?.user?.contributionsCollection;
       if (contribs) {
         commits6m = (contribs.totalCommitContributions || 0) + (contribs.restrictedContributionsCount || 0);
@@ -86,21 +103,17 @@ export async function fetchGitHubData(profileUrl: string): Promise<GitHubData> {
 
   // Process repos
   let totalStars = 0;
-  let reposWithReadme = 0;
   const languages: Record<string, number> = {};
 
   for (const repo of repos) {
     totalStars += repo.stargazers_count ?? 0;
-    if (repo.has_pages || repo.description || repo.homepage) {
-      reposWithReadme++;
-    }
     if (repo.language) {
       languages[repo.language] = (languages[repo.language] ?? 0) + 1;
     }
   }
 
   // Count repos with README heuristic
-  reposWithReadme = repos.filter((r) => r.description && r.description.length > 0).length;
+  const reposWithReadme = repos.filter((r) => r.description && r.description.length > 0).length;
 
   return {
     repos: repos.length,

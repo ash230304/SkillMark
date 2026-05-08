@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { AuthGuard } from '@/components/AuthProvider';
+import { AuthGuard, useAuth } from '@/components/AuthProvider';
 import ScoreBadge, { getScoreCategory } from '@/components/ScoreBadge';
 import ScoreBreakdown from '@/components/ScoreBreakdown';
 import { CardSkeleton } from '@/components/SkeletonLoader';
+import { authenticatedFetch } from '@/lib/api-client';
 
 interface StudentData {
   name: string;
@@ -91,8 +92,6 @@ function DonutChart({ easy, medium, hard }: { easy: number; medium: number; hard
 
   const easyPct = (easy / total) * 100;
   const medPct = (medium / total) * 100;
-  const hardPct = (hard / total) * 100;
-
   // Build conic-gradient
   const gradient = `conic-gradient(
     #22c55e 0% ${easyPct}%,
@@ -127,6 +126,7 @@ export default function StudentDetailPage() {
 function StudentDetailContent() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const id = params.id as string;
 
   const [student, setStudent] = useState<StudentData | null>(null);
@@ -150,8 +150,8 @@ function StudentDetailContent() {
   const handleResync = async () => {
     setResyncing(true);
     try {
-      const res = await fetch(`/api/sync/${id}`, { method: 'POST' });
-      const data = await res.json();
+      const res = await authenticatedFetch(user, `/api/sync/${id}`, { method: 'POST' });
+      if (!res.ok) throw new Error('Sync failed');
       // Reload page data
       const scoreSnap = await getDoc(doc(db, 'scores', id));
       if (scoreSnap.exists()) setScore(scoreSnap.data() as ScoreData);

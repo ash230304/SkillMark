@@ -34,11 +34,13 @@ export function StatCardSkeleton() {
 }
 
 export function CardSkeleton({ lines = 3 }: { lines?: number }) {
+  const widths = ['92%', '84%', '76%', '88%', '72%'];
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
       {Array.from({ length: lines }).map((_, i) => (
         <div key={i} className={`h-4 bg-gray-100 rounded animate-pulse ${i < lines - 1 ? 'mb-3' : ''}`}
-          style={{ width: `${70 + Math.random() * 30}%` }} />
+          style={{ width: widths[i % widths.length] }} />
       ))}
     </div>
   );

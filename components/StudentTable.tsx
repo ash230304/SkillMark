@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import ScoreBadge from './ScoreBadge';
 import ScoreBreakdown from './ScoreBreakdown';
 
@@ -29,6 +30,7 @@ interface StudentTableProps {
   students: StudentRow[];
   onResync: (id: string, name: string) => void;
   resyncingIds: Set<string>;
+  now: number;
 }
 
 function MedalIcon({ rank }: { rank: number }) {
@@ -43,8 +45,8 @@ function MedalIcon({ rank }: { rank: number }) {
   return <span className="text-sm font-semibold text-gray-500 w-6 text-center">{rank}</span>;
 }
 
-function timeSince(date: Date): string {
-  const diff = Date.now() - date.getTime();
+function timeSince(date: Date, now: number): string {
+  const diff = now - date.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -60,10 +62,12 @@ function getNestedValue(obj: StudentRow, key: SortKey): number | string {
   if (key === 'breakdown.githubActivity') return obj.breakdown.githubActivity;
   if (key === 'breakdown.competitive') return obj.breakdown.competitive;
   if (key === 'breakdown.consistency') return obj.breakdown.consistency;
-  return (obj as any)[key];
+  if (key === 'rank') return obj.rank;
+  if (key === 'name') return obj.name;
+  return obj.compositeScore;
 }
 
-export default function StudentTable({ students, onResync, resyncingIds }: StudentTableProps) {
+export default function StudentTable({ students, onResync, resyncingIds, now }: StudentTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -84,17 +88,18 @@ export default function StudentTable({ students, onResync, resyncingIds }: Stude
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
-  const SortIcon = ({ k }: { k: SortKey }) => {
-    if (sortKey !== k) return <span className="text-gray-300 ml-1">↕</span>;
+  const renderSortIcon = (key: SortKey) => {
+    if (sortKey !== key) return <span className="text-gray-300 ml-1">↕</span>;
     return <span className="text-[#4f8ef7] ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
   };
 
-  const ThButton = ({ label, k }: { label: string; k: SortKey }) => (
+  const renderThButton = (label: string, key: SortKey) => (
     <button
-      onClick={() => handleSort(k)}
+      onClick={() => handleSort(key)}
       className="flex items-center whitespace-nowrap hover:text-[#4f8ef7] transition-colors text-left"
     >
-      {label}<SortIcon k={k} />
+      {label}
+      {renderSortIcon(key)}
     </button>
   );
 
@@ -125,16 +130,16 @@ export default function StudentTable({ students, onResync, resyncingIds }: Stude
         <table className="w-full min-w-[900px]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
           <thead className="sticky top-0 bg-gray-50 border-b border-gray-100 z-10">
             <tr className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              <th className="px-4 py-3 text-left"><ThButton label="Rank" k="rank" /></th>
-              <th className="px-4 py-3 text-left"><ThButton label="Name" k="name" /></th>
+              <th className="px-4 py-3 text-left">{renderThButton('Rank', 'rank')}</th>
+              <th className="px-4 py-3 text-left">{renderThButton('Name', 'name')}</th>
               <th className="px-4 py-3 text-left">Roll No</th>
               <th className="px-4 py-3 text-left">Branch</th>
               <th className="px-4 py-3 text-left">Year</th>
-              <th className="px-4 py-3 text-right"><ThButton label="DSA" k="breakdown.dsa" /></th>
-              <th className="px-4 py-3 text-right"><ThButton label="GitHub" k="breakdown.githubActivity" /></th>
-              <th className="px-4 py-3 text-right"><ThButton label="Competitive" k="breakdown.competitive" /></th>
-              <th className="px-4 py-3 text-right"><ThButton label="Consistency" k="breakdown.consistency" /></th>
-              <th className="px-4 py-3 text-right"><ThButton label="Total" k="compositeScore" /></th>
+              <th className="px-4 py-3 text-right">{renderThButton('DSA', 'breakdown.dsa')}</th>
+              <th className="px-4 py-3 text-right">{renderThButton('GitHub', 'breakdown.githubActivity')}</th>
+              <th className="px-4 py-3 text-right">{renderThButton('Competitive', 'breakdown.competitive')}</th>
+              <th className="px-4 py-3 text-right">{renderThButton('Consistency', 'breakdown.consistency')}</th>
+              <th className="px-4 py-3 text-right">{renderThButton('Total', 'compositeScore')}</th>
               <th className="px-4 py-3 text-right">Synced</th>
               <th className="px-4 py-3 text-center">Actions</th>
             </tr>
@@ -154,13 +159,13 @@ export default function StudentTable({ students, onResync, resyncingIds }: Stude
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <a
+                        <Link
                           href={`/students/${student.id}`}
                           onClick={(e) => e.stopPropagation()}
                           className="font-semibold text-[#1a1a2e] hover:text-[#4f8ef7] transition-colors"
                         >
                           {student.name}
-                        </a>
+                        </Link>
                         {student.syncError && (
                           <div className="relative group/warn">
                             <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,7 +202,7 @@ export default function StudentTable({ students, onResync, resyncingIds }: Stude
                       <ScoreBadge score={student.compositeScore} />
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-gray-400">
-                      {student.lastSyncedAt ? timeSince(student.lastSyncedAt) : '—'}
+                      {student.lastSyncedAt ? timeSince(student.lastSyncedAt, now) : '—'}
                     </td>
                     <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="relative group/sync flex justify-center">

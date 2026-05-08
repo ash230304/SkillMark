@@ -1,7 +1,5 @@
 import { CodeChefData } from './scoring';
 
-const CODECHEF_API = 'https://codechef-api.vercel.app/handle';
-
 function extractCodeChefUsername(profileUrl: string): string {
   const url = profileUrl.trim();
   const match = url.match(/codechef\.com\/users\/([^/?#]+)/i);
@@ -54,4 +52,3 @@ export async function fetchCodeChefData(
     return { rating: null, problemsSolved: null };
   }
 }
-

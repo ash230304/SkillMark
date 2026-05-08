@@ -2,6 +2,7 @@ import { fetchGitHubData } from './github';
 import { fetchLeetCodeData } from './leetcode';
 import { fetchCodeChefData } from './codechef';
 import { calculateCompositeScore, GitHubData, LeetCodeData, CodeChefData } from './scoring';
+import { getErrorMessage } from './errors';
 
 export interface StudentPlatformUrls {
   githubUrl: string;
@@ -35,8 +36,8 @@ export async function syncStudent(urls: StudentPlatformUrls): Promise<SyncResult
   // Fetch GitHub
   try {
     githubData = await fetchGitHubData(urls.githubUrl);
-  } catch (err: any) {
-    errors.push(`GitHub: ${err.message}`);
+  } catch (err: unknown) {
+    errors.push(`GitHub: ${getErrorMessage(err)}`);
     // Fallback empty data so scoring can still proceed
     githubData = {
       repos: 0,
@@ -50,8 +51,8 @@ export async function syncStudent(urls: StudentPlatformUrls): Promise<SyncResult
   // Fetch LeetCode
   try {
     leetcodeData = await fetchLeetCodeData(urls.leetcodeUrl);
-  } catch (err: any) {
-    errors.push(`LeetCode: ${err.message}`);
+  } catch (err: unknown) {
+    errors.push(`LeetCode: ${getErrorMessage(err)}`);
     leetcodeData = {
       totalSolved: 0,
       easy: 0,
@@ -66,8 +67,8 @@ export async function syncStudent(urls: StudentPlatformUrls): Promise<SyncResult
     if (urls.codechefUrl) {
       codechefData = await fetchCodeChefData(urls.codechefUrl);
     }
-  } catch (err: any) {
-    errors.push(`CodeChef: ${err.message}`);
+  } catch (err: unknown) {
+    errors.push(`CodeChef: ${getErrorMessage(err)}`);
     codechefData = null;
   }
 

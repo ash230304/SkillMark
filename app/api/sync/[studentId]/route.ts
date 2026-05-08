@@ -2,12 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '@/lib/firebase-admin';
 import { syncStudent } from '@/lib/sync';
 import { FieldValue } from 'firebase-admin/firestore';
+import { requireAdminUser } from '@/lib/api-auth';
+import { getErrorMessage } from '@/lib/errors';
+
+interface StudentSyncDoc {
+  githubUrl: string;
+  leetcodeUrl: string;
+  codechefUrl?: string | null;
+}
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   const { studentId } = await params;
+  const authError = await requireAdminUser(request);
+  if (authError) return authError;
 
   try {
     const db = getAdminFirestore();
@@ -18,7 +28,7 @@ export async function POST(
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
-    const student = studentSnap.data()!;
+    const student = studentSnap.data() as StudentSyncDoc;
 
     const result = await syncStudent({
       githubUrl: student.githubUrl,
@@ -50,8 +60,9 @@ export async function POST(
       breakdown: result.breakdown,
       errors: result.errors,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = getErrorMessage(err);
     console.error('[sync/studentId] Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
